@@ -20,7 +20,7 @@ data {
   tau ~ uniform(0,10);
   
   mu0 ~ normal(0, .05);
-  mu1 ~ normal(0, 2);
+  mu1 ~ normal(0, 3);
   for(n in 1:N) {
 
     theta[n] ~ beta(aleph, tau);
