@@ -133,7 +133,7 @@ sim <- function(mu0, mu1, theta0, sd, n=170){
   eval_entropy <- function(sample_points, labels, model, additive = F) {
     aij <- alpha_wrap(model, sample_points, additive = additive)
     labels = ifelse(aij > .5, 1, 0)
-    -sum((labels*log(aij + .00000001) + (1 - labels)*log(1 - aij + .000001)))
+    -sum(labels*log(aij + .00000001) + (1 - labels)*log(1 - aij + .000001))
   }
   
   for (i in 1:nrow(param_matrix)){
