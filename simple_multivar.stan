@@ -14,7 +14,7 @@ data {
 } model {
   sigma ~ lognormal(0, alpha);
   
-  alpha ~ normal(0, .5);
+  alpha ~ normal(0, 2);
   
   aleph ~ uniform(0,10);
   tau ~ uniform(0,10);
