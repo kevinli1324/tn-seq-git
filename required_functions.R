@@ -130,6 +130,11 @@ sim <- function(mu0, mu1, theta0, sd, n=170){
     }
   }
   
+  return_aij <- function(sample_points, model, additive = F) {
+    aij <- alpha_wrap(model, sample_points, additive = additive)
+    return(aij)
+  }
+  
   eval_entropy <- function(sample_points, labels, model, additive = F) {
     aij <- alpha_wrap(model, sample_points, additive = additive)
     -sum(labels*log(aij) + (1 - labels)*log(1 - aij + .000001))
@@ -168,6 +173,14 @@ sim <- function(mu0, mu1, theta0, sd, n=170){
   rank_false <- sapply(1:nrow(stor_labels), function(i){sum(rank_method(stor_sample[i,] != stor_labels[i,] & rank_method(stor_sample[i,]) == 1))/sum(stor_labels[i,] ==0)})
   
   
+  m_m_aij <- matrix(0, nrow = nrow(stor_labels), ncol = ncol(stor_labels))
+  mc_aij <- matrix(0, nrow = nrow(stor_labels), ncol = ncol(stor_labels))
+  
+  for(i in 1:nrow(stor_labels)) {
+    m_m_aij[i,] <- return_aij(stor_sample[i,], extract_fix_param(models, i), additive = T) 
+    mc_aij[i,] <- return_aij(stor_sample[i,], get_mclust(mclust_store[[i]]))
+  }
+  
   x <-
     list(
       m_m_entropy = m_m_entropy,
@@ -181,7 +194,9 @@ sim <- function(mu0, mu1, theta0, sd, n=170){
       params = return_param_matrix,
       stan_fit = fit,
       data = stor_sample,
-      labels = stor_labels
+      labels = stor_labels,
+      m_m_label = m_m_aij,
+      mc_label = mc_aij
     )
   return(x)
 }
