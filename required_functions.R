@@ -287,3 +287,19 @@ sim2 <- function(mu0, mu1, theta0, sd, n=170){
     )
   return(y)
 }
+
+class_metrics <- function(real_matrix, aij_matrix) {
+  label_matrix <- ifelse(label_matrix > .5, 1, 0)
+  result <- real_matrix == label_matrix
+  raw_class <- rowMeans(result)
+  
+  correct_negative <- rep(0, nrow(real_matrix))
+  correct_positive <- rep(0, nrow(real_matrix))
+  
+  for(i in 1:nrow(real_matrix)) {
+    correct_negative[i] <- sum(real_matrix[i,] == 0 & label_matrix[i,] ==0)/  sum(real_matrix[i,] == 0)
+    correct_positive[i] <- sum(real_matrix[i,] == 1 & label_matrix[i,] ==1)/  sum(real_matrix[i,] == 0)
+  }
+  
+  return(list(raw = raw_class, neg_class = correct_negative, pos_class = correct_positive))
+}
