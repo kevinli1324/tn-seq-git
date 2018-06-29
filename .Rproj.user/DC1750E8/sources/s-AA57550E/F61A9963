@@ -1,0 +1,22 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1530302517309.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "F61A9963",
+    "lastKnownWriteTime" : 1530302661,
+    "last_content_update" : 1530302661165,
+    "path" : "~/R/tn-seq/git/tn-seq-git/pca_functions.R",
+    "project_path" : "pca_functions.R",
+    "properties" : {
+        "cursorPosition" : "8,0",
+        "scrollLine" : "0"
+    },
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}
