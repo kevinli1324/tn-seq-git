@@ -2,28 +2,29 @@ library(reshape2)
 library(ggplot2)
 library(rstan)
 library(dplyr)
+library(mclust)
 options(mc.cores = parallel::detectCores())
+calc_alpha <- function(mu0,  mu1, sigma, mix, point) {
+  mu0_d <- mix*dnorm(point, mean = mu0, sd = sigma)
+  mu1_d <- (1-mix)*dnorm(point, mean = mu1, sd = sigma) + .000001
+  
+  alpha <- mu1_d/(mu0_d + mu1_d)
+  return(alpha)
+}
 
+alpha_wrap <- function(store_list, points, additive = FALSE) {
+  if (!additive) {
+    calc_alpha(store_list[["mu0"]], store_list[["mu1"]], store_list[["sigma"]],
+               store_list[["mix"]], point = points)
+  } else {
+    calc_alpha(store_list[["mu0"]],
+               store_list[["mu0"]] + store_list[["mu1"]],
+               store_list[["sigma"]],
+               store_list[["mix"]],
+               point = points)
+  }
+}
 aij_interval <- function(point, stan_object, row, CI= .95) {
-  calc_alpha <- function(mu0,  mu1, sigma, mix, point) {
-    mu0_d <- mix*dnorm(point, mean = mu0, sd = sigma)
-    mu1_d <- (1-mix)*dnorm(point, mean = mu1, sd = sigma) + .000001
-    
-    alpha <- mu1_d/(mu0_d + mu1_d)
-    return(alpha)
-  }
-  
-  alpha_wrap <- function(store_list, points, additive = FALSE) {
-    if(!additive) {
-      calc_alpha(store_list[["mu0"]], store_list[["mu1"]], store_list[["sigma"]],
-                 store_list[["mix"]], point = points)
-    } else {
-      calc_alpha(store_list[["mu0"]], store_list[["mu0"]] + store_list[["mu1"]], store_list[["sigma"]],
-                 store_list[["mix"]], point = points)
-    }
-  }
-  
-  
   
   fit_frame <- as.data.frame(stan_object)
   
@@ -37,6 +38,11 @@ aij_interval <- function(point, stan_object, row, CI= .95) {
   return_vec <- alphas[rank(alphas) > length(alphas)*CI/2  & rank(alphas) < length(alphas)*(1-CI/2)]
   return(c(min(return_vec), max(return_vec)))
 }
+
+aij_min <- function(point, stan_object, row, CI= .95) {
+  aij_interval(point = point, stan_object  = stan_object, row = row, CI = CI)[[1]][1]
+}
+
 param_interval <- function(stan_object, row, CI = .95) {
   fit_frame <- as.data.frame(stan_object)
   CI <- 1-CI
@@ -54,7 +60,7 @@ param_interval <- function(stan_object, row, CI = .95) {
   return_list <- lapply(list("mu0" = mu0, mu1 = mu1, theta = mixes, sigma = sigma), get_interval, CI = CI)
 }
 rank_method <- function(sample) {
-  ifelse(rank(sample)/length(sample) <.5, 1, 0)
+  rank(sample)/length(sample)
 }
 get_mclust <- function(model_object) {
   params_list <- model_object$parameters
@@ -94,6 +100,30 @@ generate_sample <- function(n, mu0, mu1, sd, theta0) {
 rank_method <- function(sample) {
   ifelse(rank(sample)/length(sample) <.5, 1, 0)
 }
+
+return_aij <- function(sample_points, model, additive = F) {
+  aij <- alpha_wrap(model, sample_points, additive = additive)
+  return(aij)
+}
+
+eval_entropy <- function(sample_points, labels, model, additive = F) {
+  aij <- alpha_wrap(model, sample_points, additive = additive)
+  -sum(labels*log(aij) + (1 - labels)*log(1 - aij + .000001))
+}
+
+eval_accuracy <- function(sample_points, labels, model, additive = F, falsePos = F) {
+  aij <- alpha_wrap(model, sample_points, additive = additive)
+  
+  label <- ifelse(aij > .5, 1, 0)
+  accuracy <- mean(label == labels)
+  falsePositive <- sum(label != labels & label == 1)/sum(labels == 0)
+  if(falsePos) {
+    falsePositive
+  } else {
+    accuracy
+  }
+}
+
 
 sim <- function(mu0, mu1, theta0, sd, n=170){
   require(rstan)
@@ -289,7 +319,7 @@ sim2 <- function(mu0, mu1, theta0, sd, n=170){
 }
 
 class_metrics <- function(real_matrix, aij_matrix) {
-  label_matrix <- ifelse(label_matrix > .5, 1, 0)
+  label_matrix <- ifelse(aij_matrix > .5, 1, 0)
   result <- real_matrix == label_matrix
   raw_class <- rowMeans(result)
   
@@ -302,4 +332,47 @@ class_metrics <- function(real_matrix, aij_matrix) {
   }
   
   return(list(raw = raw_class, neg_class = correct_negative, pos_class = correct_positive))
+}
+
+extract_fix_param <- function(float_stan, row) {
+  fit_frame <- as.data.frame(float_stan)
+  models <- param_vec <- apply(X = fit_frame,MARGIN = 2, mean)
+  
+  mu0 <- models[paste0("mu0[", row, "]")]
+  mu1 <- models[paste0("mu1[", row, "]")]
+  mixes <- models[paste0("theta[",row,"]")]
+  sigma <- models[paste0("sigma[",row,"]")]
+  
+  return(list(mu0 = mu0, mu1 = mu1, sigma = sigma, mix = mixes))
+}
+
+plot_mix_reparam <- function(data, mean1, mean2, sd1, mix1, title) {
+  
+  temp_df <- data.frame(yay = as.numeric(data))
+  ggplot() + geom_histogram(data = temp_df, aes(..density.., x = yay)) + 
+    stat_function(data = temp_df,aes(x = yay),  fun = function(x, mean, sd) {dnorm(x, mean =mean, sd =sd)*mix1}, args = list(mean = mean1, sd = sd1), colour = "red") +
+    stat_function(data = temp_df,aes(x = yay),  fun = function(x, mean, sd) {dnorm(x, mean =mean, sd =sd)*(1-mix1)}, args = list(mean = mean1 + mean2, sd = sd1), colour = "blue") +
+    ggtitle(paste(title, "Stan"))
+  
+}
+extract_plots_testparam <- function(row, models, data) {
+  mu1 <- models[paste0("mu0[", row, "]")]
+  mu2 <- models[paste0("mu1[", row, "]")]
+  mix1 <- models[paste0("theta[",row,"]")]
+  sigma <- models[paste0("sigma[",row,"]")]
+  plot_mix_reparam(data[row,], mu1, mu2, sigma, mix1 = mix1, paste(2, "E", row))
+  
+}
+
+paper_class <- function(logfit, tfit) {
+  ifelse(abs(logfit) > .5 & abs(tfit) > 4, 1, 0)
+}
+
+class_model <- function(data, object, row = 1) {
+  if(class(object)[1] == "stanfit") {
+    model_list <- extract_fix_param(object, row = row)
+  } else {
+    model_list <- get_mclust(object)
+  }
+  alpha_wrap(model_list, data, additive = T)
 }
