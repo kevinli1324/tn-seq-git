@@ -79,6 +79,16 @@ return_partitions <- function(sample_matrix, label_matrix, princomps, params, si
   
 }
 
+partition_data <- function(sample_matrix, princomps) {
+  labels <- assign_groups(sample_matrix, princomps = princomps, single = single)
+  return_list <- as.list(rep(NA, princomps))
+  
+  for(i in 1:princomps) {
+    return_list[[i]] <- sample_matrix[which(labels == i),, drop = FALSE]
+  }
+  return(list(data = return_list, label = labels))
+}
+
 run_stan <- function(data) {
   stanFeed <- list(N = nrow(data ),  J = ncol(data),  y= data)
   fit <- stan(file = "simple_multivar.stan", iter = 500, chains = 4, control = list(max_treedepth = 15), data = stanFeed)
@@ -197,6 +207,7 @@ eval_rank <- function(data, labels) {
   
 }
 
+
 run_pca_simulation <- function(gen_data, gen_labels, princomps, param_matrix, single = F, multicore = F) {
   das_model <- stan_model("simple_multivar.stan")
   
@@ -257,3 +268,32 @@ run_pca_simulation <- function(gen_data, gen_labels, princomps, param_matrix, si
   return(list(metrics = return_frame, labels = list(stan = stan_perf,mclust =  mclust_perf), assign = groups$label, params = groups$params))
 }
 
+
+pca_wrapper <- function(data, princomps, multicore = F) {
+  groups <- partition_data(sample_matrix = data, princomps = princomps)
+  assign <- groups$label
+  data_list <- groups$data
+  if(multicore){
+    stan_models <- mclapply(data_list, run_stan)
+    
+  } else {
+    stan_models <- lapply(data_list, run_stan)
+  }
+  
+  param_list <- lapply(stan_models, function(x) {apply(as.data.frame(x), MARGIN = 2, mean)})
+  
+  param_vec <- c()
+  
+  for(i in 1:length(param_list)) {
+    vector_rename <- param_list[[i]]
+    for(param in c("theta", "mu1", "mu0", "sigma")) {
+      position_index <- grepl(param, names(vector_rename))
+      for(j in 1:length(which(assign == i))) {
+        names(vector_rename)[position_index][j] <-  paste(param,"[", which(assign == i)[j], "]", sep = "")
+      }
+    }
+    param_vec <- append(param_vec, vector_rename)
+  }
+  
+  return(param_vec)
+}
