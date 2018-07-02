@@ -90,6 +90,9 @@ partition_data <- function(sample_matrix, princomps) {
 }
 
 run_stan <- function(data) {
+  if(nrow(data) == 0) {
+    return(NA)
+  }
   stanFeed <- list(N = nrow(data ),  J = ncol(data),  y= data)
   fit <- stan(file = "simple_multivar.stan", iter = 500, chains = 4, control = list(max_treedepth = 15), data = stanFeed)
   return(fit)
@@ -280,7 +283,7 @@ pca_wrapper <- function(data, princomps, multicore = F) {
     stan_models <- lapply(data_list, run_stan)
   }
   
-  param_list <- lapply(stan_models, function(x) {apply(as.data.frame(x), MARGIN = 2, mean)})
+  param_list <- lapply(stan_models, function(x) {ifelse(!is.na(x), apply(as.data.frame(x), MARGIN = 2, mean), c(NA))})
   
   param_vec <- c()
   
