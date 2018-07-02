@@ -19,7 +19,7 @@ data {
   aleph ~ uniform(0,10);
   tau ~ uniform(0,10);
   
-  mu0 ~ normal(0, .1);
+  mu0 ~ normal(0, .05);
   mu1 ~ normal(0, 3);
   
   for(n in 1:N) {
