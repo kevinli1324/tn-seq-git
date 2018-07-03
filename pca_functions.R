@@ -3,7 +3,13 @@ library(magrittr)
 library(parallel)
 das_model <- stan_model("simple_multivar.stan")
 
-assign_groups <- function(data_matrix, princomps, single = F) {
+assign_groups <- function(data_matrix, princomps, single = F, method) {
+  if(method == "kmeans") {
+    normalize_matrix <- apply(data_matrix, MARGIN = 1, function(x) {x/norm(x, type = "2")})
+    return_labels <- kmeans(t(normalize_matrix), princomps)
+    return(return_labels$cluster)
+  }
+  
   if(single) {
     return_labels <- 1:nrow(data_matrix)
     return(return_labels)
@@ -79,8 +85,8 @@ return_partitions <- function(sample_matrix, label_matrix, princomps, params, si
   
 }
 
-partition_data <- function(sample_matrix, princomps) {
-  labels <- assign_groups(sample_matrix, princomps = princomps, single = single)
+partition_data <- function(sample_matrix, princomps, method) {
+  labels <- assign_groups(sample_matrix, princomps = princomps, single = single, method = method)
   return_list <- as.list(rep(NA, princomps))
   
   for(i in 1:princomps) {
@@ -272,8 +278,8 @@ run_pca_simulation <- function(gen_data, gen_labels, princomps, param_matrix, si
 }
 
 
-pca_wrapper <- function(data, princomps, multicore = F) {
-  groups <- partition_data(sample_matrix = data, princomps = princomps)
+pca_wrapper <- function(data, princomps, multicore = F, method = "princomp") {
+  groups <- partition_data(sample_matrix = data, princomps = princomps, method = method)
   assign <- groups$label
   data_list <- groups$data
   if(multicore){
@@ -283,7 +289,13 @@ pca_wrapper <- function(data, princomps, multicore = F) {
     stan_models <- lapply(data_list, run_stan)
   }
   
-  param_list <- lapply(stan_models, function(x) {ifelse(!is.na(x), apply(as.data.frame(x), MARGIN = 2, mean), c(NA))})
+  param_list <- lapply(stan_models, function(x) {
+    if(class(x)[1] == "stanfit") {
+      return(apply(as.data.frame(x), MARGIN = 2, mean))
+    } else {
+      return(NA)
+    }
+  })
   
   param_vec <- c()
   
@@ -298,5 +310,5 @@ pca_wrapper <- function(data, princomps, multicore = F) {
     param_vec <- append(param_vec, vector_rename)
   }
   
-  return(param_vec)
+  return(list(means = param_vec, models = stan_models, assign = assign))
 }
