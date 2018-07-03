@@ -1,13 +1,13 @@
 source("pca_functions.R")
-mu0 <- rnorm(10, 0, .05)
-mu1 <- -abs(rnorm(10, 1, 2))
-theta0  <- runif(10, .1, .9)
-sd <- abs(rnorm(10, 0, 1))
+mu0 <- rnorm(1000, 0, .05)
+mu1 <- -abs(rnorm(1000, 1, 2))
+theta0  <- runif(1000, .1, .9)
+sd <- abs(rnorm(1000, 0, 1))
 test <- gen_matrix(mu0, mu1, theta0, sd)
 
 gen_data <- test$sample
 gen_labels <- test$labels
-see <- run_pca_simulation(gen_data = gen_data, gen_labels = gen_labels, 21, test$params, multicore = F)
+see <- run_pca_simulation(gen_data = gen_data, gen_labels = gen_labels, 20, test$params, multicore = F)
 
 param_frame <- as.data.frame(see$params)
 names(param_frame) <- c("mu0", "mu1", "theta0", "sd")
@@ -45,13 +45,3 @@ plot_woof <-
       "mc_pos_class"
     )
   )
-ggplot(data = filter(plot_woof, variable %in% c("rank_perf", "mm_perf", "mc_perf")), aes(value, fill = variable)) + geom_histogram(position = "dodge", bins = 20)
-
-ggplot(data = filter(plot_woof, variable %in% c("rank_perf", "mm_perf", "mc_perf")), aes(x = mod_dist, value)) + geom_point() + facet_grid(.~ variable)
-
-
-ggplot(data = filter(plot_woof, variable %in% c("theta0","rank_entropy","mm_entropy", "mc_entropy")), aes(value, fill = variable)) + geom_histogram(position = "dodge") 
-
-ggplot(data = filter(plot_woof, variable %in% c("theta0","mm_false", "mc_false")), aes( x= theta0, y = value)) + geom_point() + facet_grid(.~variable)
-
-ggplot(data = filter(plot_woof, variable %in% c("theta0","mm_false", "mc_false")), aes( value, fill = variable)) + geom_histogram(position = "dodge")
