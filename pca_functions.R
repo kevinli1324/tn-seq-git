@@ -48,7 +48,7 @@ assign_groups <- function(data_matrix, princomps, single = F, method) {
   princomp_store <- rep(0, princomps)
   for(row in 1:nrow(data_matrix)) {
       for(p in 1:princomps) {
-        princomp_store[p] <- eval_angle(v[,p], u[,row])
+        princomp_store[p] <- eval_angle(v[,p], u[row,])
       }
     return_labels[row] <- which(princomp_store == min(princomp_store))
   }
