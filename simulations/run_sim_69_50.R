@@ -19,9 +19,6 @@ woof <- mutate(woof,
                perf_diff = mm_perf - mc_perf, 
                rank_diff = mm_perf - rank_perf,
                mod_dist  = abs(mu0 - mu1)/sd - mc_perf)
-hist(woof$entropy_diff)
-hist(woof$perf_diff)
-hist(woof$rank_diff)
 
 plot_woof <-
   melt(
@@ -45,13 +42,3 @@ plot_woof <-
       "mc_pos_class"
     )
   )
-ggplot(data = filter(plot_woof, variable %in% c("rank_perf", "mm_perf", "mc_perf")), aes(value, fill = variable)) + geom_histogram(position = "dodge", bins = 20)
-
-ggplot(data = filter(plot_woof, variable %in% c("rank_perf", "mm_perf", "mc_perf")), aes(x = mod_dist, value)) + geom_point() + facet_grid(.~ variable)
-
-
-ggplot(data = filter(plot_woof, variable %in% c("theta0","rank_entropy","mm_entropy", "mc_entropy")), aes(value, fill = variable)) + geom_histogram(position = "dodge") 
-
-ggplot(data = filter(plot_woof, variable %in% c("theta0","mm_false", "mc_false")), aes( x= theta0, y = value)) + geom_point() + facet_grid(.~variable)
-
-ggplot(data = filter(plot_woof, variable %in% c("theta0","mm_false", "mc_false")), aes( value, fill = variable)) + geom_histogram(position = "dodge")
