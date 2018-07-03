@@ -4,17 +4,6 @@ library(parallel)
 das_model <- stan_model("simple_multivar.stan")
 
 assign_groups <- function(data_matrix, princomps, single = F, method) {
-  if(method == "kmeans") {
-    normalize_matrix <- apply(data_matrix, MARGIN = 1, function(x) {x/norm(x, type = "2")})
-    return_labels <- kmeans(t(normalize_matrix), princomps)
-    return(return_labels$cluster)
-  }
-  
-  if(single) {
-    return_labels <- 1:nrow(data_matrix)
-    return(return_labels)
-  }
-  
   eval_angle <- function(vec1, vec2) {
     acos(sum(vec1*vec2)/(norm(vec1, type = "2") * norm(vec2, type = "2")))
   }
@@ -22,7 +11,7 @@ assign_groups <- function(data_matrix, princomps, single = F, method) {
   svd_object <- svd(data_matrix)
   v <- svd_object$v
   u_temp <- svd_object$u
-  
+
   if(nrow(data_matrix) < ncol(data_matrix)) {
     u <- matrix(0, nrow = nrow(v), ncol = nrow(v))
     u[1:nrow(u_temp), 1:ncol(u_temp)] <- u_temp
@@ -31,13 +20,35 @@ assign_groups <- function(data_matrix, princomps, single = F, method) {
     u <- u_temp
     z <-  t(u) %*% diag(svd_object$d, nrow = ncol(t(u)))
   }
+
+  if(method == "kmeans") {
+    normalize_matrix <- apply(data_matrix, MARGIN = 1, function(x) {x/norm(x, type = "2")})
+    return_labels <- kmeans(normalize_matrix, princomps)
+    return(return_labels$cluster)
+  } else if(method == "r_kmeans") {
+    normalize_matrix <-
+      t(apply(u[, 1:princomps], MARGIN = 1, function(x) {
+        if (norm(x, type = "2") == 0) {
+          return(x)
+        } else {
+          x / norm(x, type = "2")
+        }}))
+    return_labels <- kmeans(normalize_matrix, princomps)
+  	return(return_labels$cluster)
+  }
+  
+  if(single) {
+    return_labels <- 1:nrow(data_matrix)
+    return(return_labels)
+  }
+  
+  
   
   return_labels <- rep(0, nrow(data_matrix))
   princomp_store <- rep(0, princomps)
   for(row in 1:nrow(data_matrix)) {
       for(p in 1:princomps) {
-        princomp_store[p] <- eval_angle(v[,p], z[,row])
-        princomp_store[p] <- eval_angle(v[,p], u[row,])
+        princomp_store[p] <- eval_angle(v[,p], u[,row])
       }
     return_labels[row] <- which(princomp_store == min(princomp_store))
   }
@@ -69,8 +80,8 @@ gen_matrix <- function( mu0, mu1, theta0, sd, n = 162) {
   return(list(sample = stor_sample, labels = stor_labels, params = return_param_matrix))
 }
 
-return_partitions <- function(sample_matrix, label_matrix, princomps, params, single = F) {
-  labels <- assign_groups(sample_matrix, princomps = princomps, single = single)
+return_partitions <- function(sample_matrix, label_matrix, princomps, params, single = F, method) {
+  labels <- assign_groups(sample_matrix, princomps = princomps, single = single, method = method)
   
   return_list <- as.list(rep(NA, princomps))
   labeled_list <- as.list(rep(NA, princomps))
@@ -85,7 +96,7 @@ return_partitions <- function(sample_matrix, label_matrix, princomps, params, si
   
 }
 
-partition_data <- function(sample_matrix, princomps, method) {
+partition_data <- function(sample_matrix, princomps, method, single = F) {
   labels <- assign_groups(sample_matrix, princomps = princomps, single = single, method = method)
   return_list <- as.list(rep(NA, princomps))
   
@@ -107,6 +118,24 @@ run_stan <- function(data) {
 
 
 eval_stan_model <- function(stor_sample, stor_labels, stan_object) {
+  
+  if(class(stan_object) == "logical")  {
+    return_frame <- data.frame(
+      rank_entropy = numeric(), 
+      rank_perf = numeric(),
+      rank_false = numeric(),
+      rank_neg_class = numeric(),
+      rank_pos_class = numeric()
+    )
+    m_m_aij <- NULL
+    x <-
+      list(
+        metrics = return_frame,
+        label = m_m_aij
+      )
+    
+    return(x)
+  }
   
   
   models <- apply(X = as.data.frame(stan_object),MARGIN = 2, mean)
@@ -142,6 +171,7 @@ eval_stan_model <- function(stor_sample, stor_labels, stan_object) {
     mm_neg_class = class_object$neg_class,
     mm_pos_class = class_object$pos_class
   )
+  
   x <-
     list(
       metrics = return_frame,
@@ -152,7 +182,23 @@ eval_stan_model <- function(stor_sample, stor_labels, stan_object) {
 }
 
 eval_mclust_model <- function(data, labels, mclust_store) {
-  
+  if(class(mclust_store) == "logical")  {
+    return_frame <- data.frame(
+      rank_entropy = numeric(), 
+      rank_perf = numeric(),
+      rank_false = numeric(),
+      rank_neg_class = numeric(),
+      rank_pos_class = numeric()
+    )
+    m_m_aij <- NULL
+    x <-
+      list(
+        metrics = return_frame,
+        label = m_m_aij
+      )
+    
+    return(x)
+  }
   mc_perf <- sapply(1:nrow(data), function(i) {eval_accuracy(data[i,], labels[i,], get_mclust(mclust_store[[i]]))})
   
   mc_false <-  sapply(1:nrow(data), function(i) {eval_accuracy(data[i,], labels[i,], get_mclust(mclust_store[[i]]), falsePos = T)})
@@ -185,6 +231,24 @@ eval_mclust_model <- function(data, labels, mclust_store) {
 }
 
 eval_rank <- function(data, labels) {
+  if(nrow(data) ==0)  {
+    return_frame <- data.frame(
+      rank_entropy = numeric(), 
+      rank_perf = numeric(),
+      rank_false = numeric(),
+      rank_neg_class = numeric(),
+      rank_pos_class = numeric()
+    )
+    m_m_aij <- NULL
+    x <-
+      list(
+        metrics = return_frame,
+        label = m_m_aij
+      )
+    
+    return(x)
+  }
+  
   rank_aij <- matrix(0, nrow = nrow(data), ncol = ncol(data))
   
   for(i in 1:nrow(data)) {
@@ -217,10 +281,10 @@ eval_rank <- function(data, labels) {
 }
 
 
-run_pca_simulation <- function(gen_data, gen_labels, princomps, param_matrix, single = F, multicore = F) {
+run_pca_simulation <- function(gen_data, gen_labels, princomps, param_matrix, single = F, multicore = F, method = "princomp") {
   das_model <- stan_model("simple_multivar.stan")
   
-  groups <- return_partitions(sample_matrix = gen_data,gen_labels , princomps =  princomps, param_matrix, single = single)
+  groups <- return_partitions(sample_matrix = gen_data,gen_labels , princomps =  princomps, param_matrix, single = single, method = method)
   data_list <- groups$data
   label_list <- groups$label_data
   
@@ -233,7 +297,11 @@ run_pca_simulation <- function(gen_data, gen_labels, princomps, param_matrix, si
   
   mclust_model_list <- as.list(rep(NA, length(data_list)))
   for(i in 1:length(data_list)) {
-    mclust_model_list[[i]] <- apply(data_list[[i]], MARGIN = 1, Mclust, G  = 2, modelNames = "E")
+    if(nrow(data_list[[i]]) == 0) {
+      mclust_model_list[[i]] <- NA
+    } else {
+      mclust_model_list[[i]] <- apply(data_list[[i]], MARGIN = 1, Mclust, modelNames = "E", G = 2)
+    }
   }
   
   if(multicore) {
