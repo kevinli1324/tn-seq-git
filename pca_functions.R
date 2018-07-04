@@ -109,6 +109,8 @@ partition_data <- function(sample_matrix, princomps, method, single = F) {
 run_stan <- function(data) {
   if(nrow(data) == 0) {
     return(NA)
+  } else if(is.null(data)) {
+    return(NA)
   }
   stanFeed <- list(N = nrow(data ),  J = ncol(data),  y= data)
   fit <- stan(file = "simple_multivar.stan", iter = 500, chains = 4, control = list(max_treedepth = 15), data = stanFeed)
@@ -342,7 +344,7 @@ run_pca_simulation <- function(gen_data, gen_labels, princomps, param_matrix, si
   
   return_frame <- cbind(mm_frame,mc_frame, rank_frame)
   
-  return(list(metrics = return_frame, labels = list(stan = stan_perf,mclust =  mclust_perf), assign = groups$label, params = groups$params))
+  return(list(metrics = return_frame, labels = list(stan = stan_perf,mclust =  mclust_perf), assign = groups$label, params = groups$params, data= groups))
 }
 
 
