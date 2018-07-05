@@ -22,7 +22,7 @@ assign_groups <- function(data_matrix, princomps, single = F, method) {
   }
 
   if(method == "kmeans") {
-    normalize_matrix <- apply(data_matrix, MARGIN = 1, function(x) {x/norm(x, type = "2")})
+    normalize_matrix <- t(apply(data_matrix, MARGIN = 1, function(x) {x/norm(x, type = "2")}))
     return_labels <- kmeans(normalize_matrix, princomps)
     return(return_labels$cluster)
   } else if(method == "r_kmeans") {
@@ -42,8 +42,7 @@ assign_groups <- function(data_matrix, princomps, single = F, method) {
     return(return_labels)
   }
   
-  
-  
+
   return_labels <- rep(0, nrow(data_matrix))
   princomp_store <- rep(0, princomps)
   for(row in 1:nrow(data_matrix)) {
@@ -283,7 +282,7 @@ eval_rank <- function(data, labels) {
 }
 
 
-run_pca_simulation <- function(gen_data, gen_labels, princomps, param_matrix, single = F, multicore = F, method = "princomp") {
+run_pca_simulation <- function(gen_data, gen_labels, princomps, param_matrix = matrix(0, nrow = nrow(gen_data), ncol = 4), single = F, multicore = F, method = "princomp") {
   das_model <- stan_model("simple_multivar.stan")
   
   groups <- return_partitions(sample_matrix = gen_data,gen_labels , princomps =  princomps, param_matrix, single = single, method = method)
